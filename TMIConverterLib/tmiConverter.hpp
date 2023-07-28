@@ -171,10 +171,17 @@ struct TargetFileHeaderTMI
 // constexpr uint16_t* newPtr = testPtr + 1;
 // auto test = sizeof(TargetInfoTMI);
 
-InitialTMI decodeInitialTMI(void *inputTMIPtr, size_t inputLen);
-void *nextInitialTMI(void *inputTMIPtr);
-size_t convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t inputLen);
-size_t extractTargetTMI(uint8_t *targetTMIPtr, TargetInfoTMI &targetStruct);
-Instant_t convertTime(uint64_t NETTime);
+class TMIConverter
+{
+public:
+    size_t convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t inputLen);
+
+    static Instant_t convertTime(uint64_t NETTime);
+    static size_t nextInitialTMIPos(void *inputTMIPtr, size_t inputLen);
+
+private:
+    InitialTMI decodeInitialTMI(void *inputTMIPtr, size_t inputLen);
+    size_t extractTargetTMI(uint8_t *targetTMIPtr, TargetInfoTMI &targetStruct);
+};
 
 #endif // __TMI_CONVERTER_HPP

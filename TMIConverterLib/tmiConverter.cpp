@@ -1,10 +1,9 @@
 #include "tmiConverter.hpp"
-#include <ranges>
 #define ELEMENT_ADDRESS(buffer, element) &(buffer[element])
 #define NET_TIME_TO_UNIX_TIME_SEC 62135596800
 #define INITIAL_TMI_MARKER 0x551CBEA7
 
-InitialTMI decodeInitialTMI(void *inputTMIPtr, size_t inputLen)
+InitialTMI TMIConverter::decodeInitialTMI(void *inputTMIPtr, size_t inputLen)
 {
     constexpr auto dataMemberPosWord =                                    // Позиция поля адреса данных (в словах)
         offsetof(InitialTMI, InitialTMI::data) / sizeof(uint32_t);        //
@@ -27,7 +26,7 @@ InitialTMI decodeInitialTMI(void *inputTMIPtr, size_t inputLen)
     return initialTMI;                                                    // Возврат найденной структуры
 }
 
-size_t convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t inputLen)
+size_t TMIConverter::convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t inputLen)
 {
     InitialTMI initialTMI = decodeInitialTMI(inputTMIPtr, inputLen);                // Получение первичной структуры ТМИ
     if (initialTMI.marker != INITIAL_TMI_MARKER)                                    // Проверка маркера правильно загруженной первичной структуры
@@ -47,7 +46,7 @@ size_t convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t inputLen)
     return addBytesLen;                                                             // Возврат числа байт записанных в выходной буфер
 }
 
-size_t extractTargetTMI(uint8_t *targetTMIPtr, TargetInfoTMI &targetStruct)
+size_t TMIConverter::extractTargetTMI(uint8_t *targetTMIPtr, TargetInfoTMI &targetStruct)
 {
     // Смещение следующего копируемого байта
     size_t targetTMICurrentByte = 0;
@@ -73,12 +72,34 @@ size_t extractTargetTMI(uint8_t *targetTMIPtr, TargetInfoTMI &targetStruct)
     return targetTMICurrentByte;
 }
 
-Instant_t convertTime(uint64_t NETTime) // .NET DataTime - число 100 нс интервалов от 01.01.0001 00:00:00
-                                        // UNIX Timestamp - число секунд от 01.01.1970 00:00:00
-                                        // Число секундных интервалов до UNIX Timestamp 62135596800 (NET_TIME_TO_UNIX_TIME_SEC)
+Instant_t TMIConverter::convertTime(uint64_t NETTime) // .NET DataTime - число 100 нс интервалов от 01.01.0001 00:00:00
+                                                      // UNIX Timestamp - число секунд от 01.01.1970 00:00:00
+                                                      // Число секундных интервалов до UNIX Timestamp 62135596800 (NET_TIME_TO_UNIX_TIME_SEC)
 {
-    // constexpr uint64_t testNETTime = 638261216460000000;          // Тестовое время 28.07.2023 06:14:06
+    // constexpr uint64_t testNETTime = 638261216460000000;         // Тестовое время 28.07.2023 06:14:06
     int32_t nanoseconds = (NETTime % int(1e7)) * 100;               // Вычисление наносекунд (Получение числа 100 нс тиков и умножение на 100)
     int64_t unixTime = (NETTime / 1e7) - NET_TIME_TO_UNIX_TIME_SEC; // Перевод секунд в .NET времени в UNIX время
-    return {unixTime, nanoseconds};
+    return {unixTime, nanoseconds};                                 // Возврат структуры времени
+}
+
+size_t TMIConverter::nextInitialTMIPos(void *inputTMIPtr, size_t inputLen)
+{
+    constexpr auto dataLenPos =                                       // Позиция поля длины данных (в байтах)
+        offsetof(InitialTMI, InitialTMI::dataLen);                    //
+    constexpr auto dataPos =                                          // Позиция поля адреса данных (в байтах)
+        offsetof(InitialTMI, InitialTMI::data);                       //
+    constexpr auto minTwoBufferSize_1 = (2 * sizeof(InitialTMI)) - 1; // Минимальный размер буфера (мин длина UDP пакета = 8 байт) - 1
+    if (inputLen < minTwoBufferSize_1)                                // Проверка на размер входного буфера (минимум два буфера)
+        return 0;                                                     // Возврат ошибки в случае меньшего размера буфера
+    auto byteArray = (uint8_t *)inputTMIPtr;                          // Интепретация входного буфера в виде байтового массива
+    size_t nextStructPos = 0;                                         // Позиция для поиска следующей структуры
+    for (size_t i = 0; i < inputLen - minTwoBufferSize_1; ++i)        // Цикл поиска начала структуры пословно
+        if (((uint32_t *)byteArray)[i] == INITIAL_TMI_MARKER)         // Начало исходной структуры
+        {                                                             //
+            uint32_t dataLen =                                        // Извлечение длины сообщения
+                ((uint32_t *)byteArray)[i + dataLenPos];              //
+            nextStructPos = dataPos + dataLen + sizeof(uint32_t);     // Вычисление позиции следующего поиска (с добавлением поля CRC)
+            break;                                                    // Выход из цикла
+        }                                                             //
+    return nextStructPos;                                             // Возврат позиции начала поиска следующей структуры
 }
