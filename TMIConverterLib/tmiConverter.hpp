@@ -169,12 +169,13 @@ struct TargetFileHeaderTMI
 
 // constexpr uint16_t* testPtr = (uint16_t*)0x456;
 // constexpr uint16_t* newPtr = testPtr + 1;
-// auto test = sizeof(TargetInfoTMI);
+auto test = sizeof(Version_t);
 
 class TMIConverter
 {
 public:
     size_t convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t inputLen);
+    size_t addFileHeaderTMI(void *targetTMIPtr);
 
     static Instant_t convertTime(uint64_t NETTime);
     static size_t nextInitialTMIPos(void *inputTMIPtr, size_t inputLen);

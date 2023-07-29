@@ -46,6 +46,14 @@ size_t TMIConverter::convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t in
     return addBytesLen;                                                             // Возврат числа байт записанных в выходной буфер
 }
 
+size_t TMIConverter::addFileHeaderTMI(void *targetTMIPtr)
+{
+    TargetFileHeaderTMI targetTMI; // Определение целевой структуры
+    targetTMI.version = {1, 1}; // Добавление версии протокола
+    memcpy(targetTMIPtr, &targetTMI, sizeof(TargetFileHeaderTMI)); // Копирование 
+    return sizeof(TargetFileHeaderTMI);
+}
+
 size_t TMIConverter::extractTargetTMI(uint8_t *targetTMIPtr, TargetInfoTMI &targetStruct)
 {
     // Смещение следующего копируемого байта
