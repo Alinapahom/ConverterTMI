@@ -1,9 +1,9 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <ctime>
 #include <iomanip>
-#include <cerrno>
 #include "tmiGenerator.hpp"
 
 int main(int argc, char const *argv[])
@@ -31,7 +31,7 @@ int main(int argc, char const *argv[])
     if (initialTmiFile.is_open() == false)                                                             // Проверка открытия файла
     {                                                                                                  //
         std::cerr << "Could't create file\r\n";                                                        // Вывод ошибки программы в консоль
-        return ENOFILE;                                                                                // Возврат из программы с кодом ошибки ENOFILE
+        return -1;                                                                                // Возврат из программы с кодом ошибки ENOFILE
     }                                                                                                  //
 
     // Генерация пакетов
