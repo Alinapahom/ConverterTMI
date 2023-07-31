@@ -4,7 +4,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
+#define SSPP_MARKER 0x50505353
 
+#pragma pack(1)
 struct InitialTMI
 {
     uint32_t marker = 0;
@@ -151,7 +153,7 @@ struct TargetHeaderTMI
 
 struct TargetInfoTMI
 {
-    const TargetHeaderTMI header = {0x53535050, 0}; // Код 0x53535050 => Числовое отображение строки SSPP
+    const TargetHeaderTMI header = {SSPP_MARKER, 0};
     VeryShortString_t srcType;
     UShort_t srcNum;
     Instant_t time;
@@ -163,13 +165,13 @@ struct TargetInfoTMI
 #pragma pack(1)
 struct TargetFileHeaderTMI
 {
-    const TargetHeaderTMI header = {0x53535050, 128}; // Код 0x53535050 => Числовое отображение строки SSPP
+    const TargetHeaderTMI header = {SSPP_MARKER, 128};
     Version_t version;
 };
 
 // constexpr uint16_t* testPtr = (uint16_t*)0x456;
 // constexpr uint16_t* newPtr = testPtr + 1;
-auto test = sizeof(Version_t);
+// auto test = sizeof(Version_t);
 
 class TMIConverter
 {
@@ -182,7 +184,7 @@ public:
 
 private:
     InitialTMI decodeInitialTMI(void *inputTMIPtr, size_t inputLen);
-    size_t extractTargetTMI(uint8_t *targetTMIPtr, TargetInfoTMI &targetStruct);
+    size_t extractTargetTMI(void *targetTMIPtr, TargetInfoTMI &targetStruct);
 };
 
 #endif // __TMI_CONVERTER_HPP

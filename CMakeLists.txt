@@ -4,3 +4,4 @@ project(Converter CXX)
 
 add_subdirectory(TMIConverterLib)
 add_subdirectory(TMIGenerator)
+add_subdirectory(TMIConverter)

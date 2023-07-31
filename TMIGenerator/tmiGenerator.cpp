@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <netdb.h>
 #endif
-#define TMI_MARKER 0xA7BE1C55
+#define TMI_MARKER 0x551CBEA7
 #define NET_TIME_TO_UNIX_TIME_SEC 62135596800
 #define HUNDRED_NS_IN_SEC 10000000
 
@@ -60,14 +60,14 @@ size_t TMIGenerator::generateTMI(void *byteBuffer, size_t bufferSize)
     tmiStruct->timeStamp = getCurrentNETTime(); // Получение текущего времени
     tmiStruct->flags = 0;                       // Отсутствие флагов
 
-    size_t maxDataSize = bufferSize -                            // Максимальное число генерируемых байт UDP пакета
-                         tmiStructLenWithoutData -               // Размер генерируемой структуры без блока данных
-                         sizeof(UDPHeader);                      // Место для заголовка UDP пакета (8 байт)
-    uint32_t dataSize = 4 * ((rand() % maxDataSize) / 4);        // Получение размера генерируемых данных с выравниванием по 4 байтам
-    tmiStruct->dataLen = dataSize + sizeof(UDPHeader);           // Копирование длины данных, с учетом длины заголовка UDP
+    size_t maxDataSize = bufferSize -                        // Максимальное число генерируемых байт UDP пакета
+                         tmiStructLenWithoutData -           // Размер генерируемой структуры без блока данных
+                         sizeof(UDPHeader);                  // Место для заголовка UDP пакета (8 байт)
+    uint32_t dataSize = 4 * ((rand() % maxDataSize) / 4);    // Получение размера генерируемых данных с выравниванием по 4 байтам
+    tmiStruct->dataLen = dataSize + sizeof(UDPHeader);       // Копирование длины данных, с учетом длины заголовка UDP
     auto dataPolePtr = (uint8_t *)&(tmiStruct->minSizeData); // Получение адреса начала блока данных
-    auto crcPolePtr =                                            // Получение адреса поля CRC
-        (uint32_t *)(dataPolePtr + tmiStruct->dataLen);          // Интепретация адреса следующего байта после блока данных
+    auto crcPolePtr =                                        // Получение адреса поля CRC
+        (uint32_t *)(dataPolePtr + tmiStruct->dataLen);      // Интепретация адреса следующего байта после блока данных
 
     genUDPData(dataPolePtr, dataSize, srcPort, dstPort); // Генерирование случайных данных
     *crcPolePtr = 0;                                     // Создание пакета без генерирования CRC
