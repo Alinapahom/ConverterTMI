@@ -8,22 +8,14 @@
 
 InitialTMI TMIConverter::decodeInitialTMI(void *inputTMIPtr, size_t inputLen)
 {
-    constexpr auto dataMemberPosWord = offsetof(InitialTMI, InitialTMI::data);         // Позиция поля адреса данных
-    constexpr auto minBufferSize_1 = sizeof(InitialTMI) - 1;                           // Минимальный размер буфера (мин длина UDP пакета = 8 байт) - 1
-    InitialTMI initialTMI;                                                             // Определение исходной структуры
-    if (inputLen > minBufferSize_1)                                                    // Проверка на размер буфера
-    {                                                                                  //
-        for (size_t i = 0; i < inputLen - minBufferSize_1; ++i)                        // Цикл поиска начала структуры пословно
-        {                                                                              //
-            if (*WORD_ADDRESS(inputTMIPtr, i) == INITIAL_TMI_MARKER)                   // Начало исходной структуры
-            {                                                                          //
-                memcpy(&initialTMI, BYTE_ADDRESS(inputTMIPtr, i), sizeof(InitialTMI)); // Копирование полей исходной структуры
-                initialTMI.data = BYTE_ADDRESS(inputTMIPtr, i + dataMemberPosWord);    // Запись адреса массива данных в последнее поле исходной структуры
-                break;                                                                 // Выход из цикла
-            }                                                                          //
-        }                                                                              //
-    }                                                                                  //
-    return initialTMI;                                                                 // Возврат найденной структуры
+    constexpr auto dataMemberPosWord = offsetof(InitialTMI, InitialTMI::data);        // Позиция поля адреса данных
+    InitialTMI initialTMI;                                                            // Определение исходной структуры
+    auto structOffset = checkInitialTMI(inputTMIPtr, inputLen);                       // Получение смещения начала структуры
+    if (structOffset == -1)                                                           // Проверка на ошибки
+        return initialTMI;                                                            // Возврат пустой структуры
+    memcpy(&initialTMI, BYTE_ADDRESS(inputTMIPtr, structOffset), sizeof(InitialTMI)); // Копирование исходной структуры
+    initialTMI.data = BYTE_ADDRESS(inputTMIPtr, structOffset + dataMemberPosWord);    // Запись адреса массива данных в последнее поле исходной структуры
+    return initialTMI;                                                                // Возврат найденной структуры
 }
 
 size_t TMIConverter::convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t inputLen)
@@ -33,29 +25,39 @@ size_t TMIConverter::convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t in
         return 0;                                                     // Возврат нулевой длины выходного буфера в качестве ошибки
     TargetInfoTMI targetTMI;                                          // Определение целевой структуры
     targetTMI.srcType = {3, "UDP"};                                   // Запись строки в структуру
-    targetTMI.srcNum.data = _byteswap_ushort(initialTMI.srcPort);     // Копирование номера порта источника в качестве номер источника с поворотом байт
+    targetTMI.srcNum = initialTMI.srcPort;                            // Копирование номера порта источника в качестве номер источника
     targetTMI.time = convertTime(initialTMI.timeStamp);               // Преобразование .Net времени
     targetTMI.data =                                                  // Копирование байтового массива с пакетом UDP
         {static_cast<uint16_t>(initialTMI.dataLen), initialTMI.data}; //
     targetTMI.propertiesCount = 3;                                    // Число определенных свойств
-    targetTMI.properties = new Property_t[3];                         // Выделение памяти для хранения свойств
-    targetTMI.properties[0] =                                         // Копирование IP адреса источника
-        {0, sizeof(initialTMI.srcIP), &initialTMI.srcIP};             //
-    targetTMI.properties[1] =                                         // Копирование порта получателя
-        {1, sizeof(initialTMI.dstPort), &initialTMI.dstPort};         //
-    targetTMI.properties[2] =                                         // Копирование порта источника
-        {2, sizeof(initialTMI.srcPort), &initialTMI.srcPort};         //
-    auto addBytesLen = extractTargetTMI(targetTMIPtr, targetTMI);     // Распаковка предварительной структуры
-    delete[] targetTMI.properties;                                    // Освобождение выделенной памяти для хранения свойств
-    return addBytesLen;                                               // Возврат числа байт записанных в выходной буфер
+
+    // Инициализация свойств
+    targetTMI.properties = new Property_t[3];                        // Выделение памяти для хранения свойств
+    uint32_t propertySrcIP = _byteswap_ulong(initialTMI.srcIP);      // Запись IP источника с перестановкой байт
+    targetTMI.properties[0] =                                        // Копирование IP адреса источника
+        {0, sizeof(initialTMI.srcIP), &propertySrcIP};               //
+    uint32_t propertyDstPort = _byteswap_ushort(initialTMI.dstPort); // Запись порта назначения с перестановкой байт
+    targetTMI.properties[1] =                                        // Копирование порта получателя
+        {1, sizeof(initialTMI.dstPort), &propertyDstPort};           //
+    uint32_t propertySrcPort = _byteswap_ushort(initialTMI.srcPort); // Запись порта источника с перестановкой байт
+    targetTMI.properties[2] =                                        // Копирование порта источника
+        {2, sizeof(initialTMI.srcPort), &propertySrcPort};           //
+
+    auto addBytesLen = extractTargetTMI(targetTMIPtr, targetTMI); // Распаковка предварительной структуры
+    delete[] targetTMI.properties;                                // Освобождение выделенной памяти для хранения свойств
+    return addBytesLen;                                           // Возврат числа байт записанных в выходной буфер
 }
 
 size_t TMIConverter::addFileHeaderTMI(void *targetTMIPtr)
 {
-    TargetFileHeaderTMI targetTMI;                                 // Определение целевой структуры
-    targetTMI.version = {1, 1};                                    // Добавление версии протокола
-    memcpy(targetTMIPtr, &targetTMI, sizeof(TargetFileHeaderTMI)); // Копирование
-    return sizeof(TargetFileHeaderTMI);
+    TargetFileHeaderTMI targetTMI;   // Определение структуры заголовка файла
+    targetTMI.version = {1, 1};      // Добавление версии протокола
+    size_t targetTMICurrentByte = 0; // Смещение следующего копируемого байта
+
+    TargetHeaderTMI outputHeader = targetTMI.header;
+    targetTMICurrentByte += outputHeader.extract(BYTE_ADDRESS(targetTMIPtr, targetTMICurrentByte));
+    targetTMICurrentByte += targetTMI.version.extract(BYTE_ADDRESS(targetTMIPtr, targetTMICurrentByte));
+    return targetTMICurrentByte;
 }
 
 size_t TMIConverter::extractTargetTMI(void *targetTMIPtr, TargetInfoTMI &targetStruct)
@@ -116,4 +118,26 @@ size_t TMIConverter::nextInitialTMIPos(void *inputTMIPtr, size_t inputLen)
     if (nextStructPos >= inputLen)                                    // Если позиция следующей структуры выходит за пределы файла
         nextStructPos = 0;                                            // Обнуление позиции
     return nextStructPos;                                             // Возврат позиции начала поиска следующей структуры
+}
+
+int TMIConverter::checkInitialTMI(void *inputTMIPtr, size_t inputLen)
+{
+    constexpr auto minBufferSize = sizeof(InitialTMI);           // Минимальный размер буфера (мин длина UDP пакета = 8 байт)
+    if (inputLen < minBufferSize)                                // Проверка на размер буфера
+        return -1;                                               //
+    for (size_t i = 0; i < inputLen - minBufferSize + 1; ++i)    // Цикл поиска начала структуры
+    {                                                            //
+        if (*WORD_ADDRESS(inputTMIPtr, i) == INITIAL_TMI_MARKER) // Начало исходной структуры
+            return i;                                            //
+    }                                                            //
+    return -1;                                                   // Если не нашелся маркер, возвращаем ошибку
+}
+
+int TMIConverter::numInitialTMI(void *inputTMIPtr, size_t inputLen)
+{
+    auto structOffset = checkInitialTMI(inputTMIPtr, inputLen);              // Получение смещения начала структуры
+    if (structOffset == -1)                                                  // Проверка на ошибки
+        return structOffset;                                                 // Возврат ошибки
+    auto initialTMI = (InitialTMI *)BYTE_ADDRESS(inputTMIPtr, structOffset); // Определение исходной структуры
+    return initialTMI->srcPort;                                              // Возврат порта отправителя в качестве номера
 }

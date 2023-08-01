@@ -4,7 +4,9 @@
 #include <filesystem>
 #include <string>
 #include <sstream>
+#include <cstring>
 #include <ctime>
+
 #include "tmiConverter.hpp"
 
 int main(int argc, char const *argv[])
@@ -50,26 +52,38 @@ int main(int argc, char const *argv[])
     std::cout << "Initial TMI file name: " << initialTMIFileName << std::endl                 // Вывод в консоль информации об открытом файле
               << "File size of initial TMI: " << initialTMIFileSize << std::endl;             //
 
-    // Переконвертация даты из имени файла
+    // Инициализация байтовых массивов
+    char *initialTMIBuffer, *targetTMIBuffer;
+    try
+    {
+        initialTMIBuffer = new char[initialTMIFileSize];
+        targetTMIBuffer = new char[initialTMIFileSize + 100];
+    }
+    catch (std::bad_alloc)
+    {
+        std::cerr << "Can't allocate memory for buffers" << std::endl;
+        initialTMIFile.close();
+        return -1;
+    }
+
+    // Генерация имени выходного файла
+    initialTMIFile.read(initialTMIBuffer, initialTMIFileSize); // Копирование исходной структуры в байтовый массив
+    int srcNum = TMIConverter::numInitialTMI(initialTMIBuffer, initialTMIFileSize);
+    if (srcNum == -1)
+    {
+        std::cerr << "Initial file doesn't contain any structures!" << std::endl;
+        delete[] initialTMIBuffer;
+        delete[] targetTMIBuffer;
+        initialTMIFile.close();
+        return -1;
+    }
     std::istringstream initialTMIDate(dateString);
     std::tm initialTMITime = {};
     initialTMIDate >> std::get_time(&initialTMITime, "%d_%m_%Y_%H_%M_%S");
     auto targetTMIDate = std::put_time(&initialTMITime, "%Y-%m-%d_%H-%M-%S");
-
-    // Создание папки и проверка наличия конечного файла
-    std::error_code fsError;
-    if (std::filesystem::create_directory("tmi", fsError) == false)
-    {
-        std::cerr << "Can't create directory tmi" << std::endl;
-        fsError.clear();
-        initialTMIFile.close();
-        return -1;
-    }
-    fsError.clear();
-
-    // Генерация имени выходного файла
-    std::ostringstream targetTMIName, targetTMIPath;
-    targetTMIName << targetTMIDate << "_UDP_0";
+    std::ostringstream targetTMIName,
+        targetTMIPath;
+    targetTMIName << targetTMIDate << "_UDP_" << (uint16_t)srcNum;
     targetTMIPath << "tmi/" << targetTMIName.str() << ".sspp";
     int currentFileNum = 0;
     while (std::filesystem::exists(targetTMIPath.str()))
@@ -79,6 +93,20 @@ int main(int argc, char const *argv[])
         targetTMIPath << "tmi/" << targetTMIName.str() << "_" << currentFileNum << ".sspp";
     }
 
+    // Создание папки tmi
+    try
+    {
+        std::filesystem::create_directory("tmi");
+    }
+    catch (std::filesystem::filesystem_error)
+    {
+        std::cerr << "Can't create directory tmi" << std::endl;
+        delete[] initialTMIBuffer;
+        delete[] targetTMIBuffer;
+        initialTMIFile.close();
+        return -1;
+    }
+
     // Создание выходного файла
     std::ofstream targetTMIFile;
     auto targetTMIFileName = targetTMIPath.str();
@@ -86,33 +114,20 @@ int main(int argc, char const *argv[])
     if (targetTMIFile.is_open() == false)
     {
         std::cerr << "Can't create file " << targetTMIPath.str() << std::endl;
+        delete[] initialTMIBuffer;
+        delete[] targetTMIBuffer;
         initialTMIFile.close();
-        return -1;
-    }
-
-    // Инициализация байтовых массивов
-    char *initialTMIBuffer, *targetTMIBuffer;
-    try
-    {
-        initialTMIBuffer = new char[initialTMIFileSize];
-        targetTMIBuffer = new char[1024];
-    }
-    catch (std::bad_alloc)
-    {
-        std::cerr << "Can't allocate memory for buffers" << std::endl;
-        initialTMIFile.close();
-        targetTMIFile.close();
         return -1;
     }
 
     // Конвертация структур
-    initialTMIFile.read(initialTMIBuffer, initialTMIFileSize);       // Копирование исходной структуры в байтовый массив
     size_t targetTMIFileSize = 0;                                    // Смещение целевого буфера
     size_t initialTMIBufferShift = 0;                                // Смещение исходного буфера
     TMIConverter converter;                                          // Инициализация конвертера
     size_t headerSize = converter.addFileHeaderTMI(targetTMIBuffer); // Созданение заголовка в байтовом массиве
     targetTMIFile.write(targetTMIBuffer, headerSize);                // Запись заголовка файла
     targetTMIFileSize += headerSize;                                 // Добавление размера заголовка
+    int structNum = 1;                                               // Номер обрабатываемой структуры
     while (1)                                                        // Цикл конвертации файлов
     {
         auto currentInitialTMIBufAddress = initialTMIBuffer + initialTMIBufferShift;
