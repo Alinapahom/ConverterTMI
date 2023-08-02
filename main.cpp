@@ -127,7 +127,6 @@ int main(int argc, char const *argv[])
     size_t headerSize = converter.addFileHeaderTMI(targetTMIBuffer); // Созданение заголовка в байтовом массиве
     targetTMIFile.write(targetTMIBuffer, headerSize);                // Запись заголовка файла
     targetTMIFileSize += headerSize;                                 // Добавление размера заголовка
-    int structNum = 1;                                               // Номер обрабатываемой структуры
     while (1)                                                        // Цикл конвертации файлов
     {
         auto currentInitialTMIBufAddress = initialTMIBuffer + initialTMIBufferShift;

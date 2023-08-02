@@ -27,7 +27,7 @@ struct UShort_t
     uint16_t data;
 
     UShort_t(uint16_t inData = 0) : data(inData) {}
-    operator uint16_t() { return (std::endian::native == std::endian::little) ? _byteswap_ushort(data) : data; }
+    operator uint16_t() { return (std::endian::native == std::endian::little) ? _OSSwapInt16(data) : data; }
 
     size_t extract(void *outputBuffer)
     {
@@ -65,11 +65,11 @@ struct Instant_t
     {
         auto doubleWordBuffer = reinterpret_cast<uint64_t *>(outputBuffer);                     // Интепретация буфера в виде массива 64-битных слов
         doubleWordBuffer[0] =                                                                   // Копирование значения времени UTC c проверкой порядка байт платформы обработчика
-            (std::endian::native == std::endian::little) ? _byteswap_uint64(utcTime) : utcTime; //
+            (std::endian::native == std::endian::little) ? _OSSwapInt64(utcTime) : utcTime; //
                                                                                                 //
         auto wordBuffer = reinterpret_cast<uint32_t *>(outputBuffer);                           // Интепретация буфера в виде массива слов
         wordBuffer[2] =                                                                         // Копирование значения наносекунд c проверкой порядка байт платформы обработчика
-            (std::endian::native == std::endian::little) ? _byteswap_ulong(nanoSec) : utcTime;  //
+            (std::endian::native == std::endian::little) ? _OSSwapInt32(nanoSec) : nanoSec;  //
         return sizeof(Instant_t);                                                               // Возвращаем число, указывающее на сколько расширился буфер
     };
 };

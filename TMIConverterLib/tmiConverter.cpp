@@ -8,7 +8,7 @@
 
 InitialTMI TMIConverter::decodeInitialTMI(void *inputTMIPtr, size_t inputLen)
 {
-    constexpr auto dataMemberPosWord = offsetof(InitialTMI, InitialTMI::data);        // Позиция поля адреса данных
+    constexpr auto dataMemberPosWord = 36;                                            // Позиция поля адреса данных
     InitialTMI initialTMI;                                                            // Определение исходной структуры
     auto structOffset = checkInitialTMI(inputTMIPtr, inputLen);                       // Получение смещения начала структуры
     if (structOffset == -1)                                                           // Проверка на ошибки
@@ -32,16 +32,16 @@ size_t TMIConverter::convertTMI(void *targetTMIPtr, void *inputTMIPtr, size_t in
     targetTMI.propertiesCount = 3;                                    // Число определенных свойств
 
     // Инициализация свойств
-    targetTMI.properties = new Property_t[3];                        // Выделение памяти для хранения свойств
-    uint32_t propertySrcIP = _byteswap_ulong(initialTMI.srcIP);      // Запись IP источника с перестановкой байт
-    targetTMI.properties[0] =                                        // Копирование IP адреса источника
-        {0, sizeof(initialTMI.srcIP), &propertySrcIP};               //
-    uint32_t propertyDstPort = _byteswap_ushort(initialTMI.dstPort); // Запись порта назначения с перестановкой байт
-    targetTMI.properties[1] =                                        // Копирование порта получателя
-        {1, sizeof(initialTMI.dstPort), &propertyDstPort};           //
-    uint32_t propertySrcPort = _byteswap_ushort(initialTMI.srcPort); // Запись порта источника с перестановкой байт
-    targetTMI.properties[2] =                                        // Копирование порта источника
-        {2, sizeof(initialTMI.srcPort), &propertySrcPort};           //
+    targetTMI.properties = new Property_t[3];                    // Выделение памяти для хранения свойств
+    uint32_t propertySrcIP = _OSSwapInt32(initialTMI.srcIP);     // Запись IP источника с перестановкой байт
+    targetTMI.properties[0] =                                    // Копирование IP адреса источника
+        {0, sizeof(initialTMI.srcIP), &propertySrcIP};           //
+    uint32_t propertyDstPort = _OSSwapInt16(initialTMI.dstPort); // Запись порта назначения с перестановкой байт
+    targetTMI.properties[1] =                                    // Копирование порта получателя
+        {1, sizeof(initialTMI.dstPort), &propertyDstPort};       //
+    uint32_t propertySrcPort = _OSSwapInt16(initialTMI.srcPort); // Запись порта источника с перестановкой байт
+    targetTMI.properties[2] =                                    // Копирование порта источника
+        {2, sizeof(initialTMI.srcPort), &propertySrcPort};       //
 
     auto addBytesLen = extractTargetTMI(targetTMIPtr, targetTMI); // Распаковка предварительной структуры
     delete[] targetTMI.properties;                                // Освобождение выделенной памяти для хранения свойств
@@ -99,10 +99,8 @@ Instant_t TMIConverter::convertTime(uint64_t NETTime) // .NET DataTime - чис�
 
 size_t TMIConverter::nextInitialTMIPos(void *inputTMIPtr, size_t inputLen)
 {
-    constexpr auto dataLenPos =                                       // Позиция поля длины данных (в байтах)
-        offsetof(InitialTMI, InitialTMI::dataLen);                    //
-    constexpr auto dataPos =                                          // Позиция поля адреса данных (в байтах)
-        offsetof(InitialTMI, InitialTMI::data);                       //
+    constexpr auto dataLenPos = 16;                                   // Позиция поля длины данных (в байтах)
+    constexpr auto dataPos = 36;                                      // Позиция поля адреса данных (в байтах)
     constexpr auto minTwoBufferSize_1 = (2 * sizeof(InitialTMI)) - 1; // Минимальный размер буфера (мин длина UDP пакета = 8 байт) - 1
     size_t nextStructPos = 0;                                         // Позиция для поиска следующей структуры
     if (inputLen < minTwoBufferSize_1)                                // Проверка на размер входного буфера (минимум два буфера)
